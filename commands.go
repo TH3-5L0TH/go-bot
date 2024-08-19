@@ -21,7 +21,11 @@ var commands = []*discordgo.ApplicationCommand{
 	},
 	{
 		Name:        "pause",
-		Description: "Pauses the current song",
+		Description: "Pauses/unpauses the current song",
+	},
+	{
+		Name:        "resume",
+		Description: "Pauses/unpauses the current song",
 	},
 	{
 		Name:        "now-playing",

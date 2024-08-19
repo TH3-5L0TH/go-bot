@@ -139,6 +139,10 @@ func (b *Bot) pause(event *discordgo.InteractionCreate, data discordgo.Applicati
 	})
 }
 
+func (b *Bot) resume(event *discordgo.InteractionCreate, data discordgo.ApplicationCommandInteractionData) error {
+	return b.pause(event, data)
+}
+
 func (b *Bot) stop(event *discordgo.InteractionCreate, data discordgo.ApplicationCommandInteractionData) error {
 	player := b.Lavalink.ExistingPlayer(snowflake.MustParse(event.GuildID))
 	if player == nil {

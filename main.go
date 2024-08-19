@@ -95,6 +95,7 @@ func main() {
 	b.Handlers = map[string]func(event *discordgo.InteractionCreate, data discordgo.ApplicationCommandInteractionData) error{
 		"play":        b.play,
 		"pause":       b.pause,
+		"resume":      b.resume,
 		"now-playing": b.nowPlaying,
 		"stop":        b.stop,
 		"queue":       b.queue,
