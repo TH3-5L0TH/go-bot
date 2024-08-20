@@ -27,6 +27,7 @@ var (
 	NodeAddress   string
 	NodePassword  string
 	NodeSecure    bool
+	EmptyChannelTimeout int
 )
 
 func init() {
@@ -41,6 +42,7 @@ func init() {
 	NodeAddress = os.Getenv("NODE_ADDRESS")
 	NodePassword = os.Getenv("NODE_PASSWORD")
 	NodeSecure, _ = strconv.ParseBool(os.Getenv("NODE_SECURE"))
+	EmptyChannelTimeout, _ = strconv.Atoi(os.Getenv("EMPTY_CHANNEL_TIMEOUT"))
 }
 
 type Bot struct {
@@ -144,6 +146,19 @@ func (b *Bot) onApplicationCommand(session *discordgo.Session, event *discordgo.
 
 func (b *Bot) onVoiceStateUpdate(session *discordgo.Session, event *discordgo.VoiceStateUpdate) {
 	if event.UserID != session.State.User.ID {
+		botVc := getBotVoiceChannelId(session, event.VoiceState.GuildID)
+		if botVc != "" {
+			BotVcMemCount := getVoiceChannelMemberCount(session, event.VoiceState.GuildID, botVc)
+			if BotVcMemCount == 1 {
+				time.Sleep(time.Duration(EmptyChannelTimeout) * time.Second)
+				BotVcMemCount := getVoiceChannelMemberCount(session, event.VoiceState.GuildID, botVc)
+				if BotVcMemCount == 1 {
+					if err := b.Session.ChannelVoiceJoinManual(event.VoiceState.GuildID, "", false, false); err != nil {
+						slog.Error("Error disconnecting from voice channel: ", slog.Any("err", err))
+					}
+				}
+			}
+		}
 		return
 	}
 
@@ -160,4 +175,33 @@ func (b *Bot) onVoiceStateUpdate(session *discordgo.Session, event *discordgo.Vo
 
 func (b *Bot) onVoiceServerUpdate(session *discordgo.Session, event *discordgo.VoiceServerUpdate) {
 	b.Lavalink.OnVoiceServerUpdate(context.TODO(), snowflake.MustParse(event.GuildID), event.Token, event.Endpoint)
+}
+
+func getBotVoiceChannelId(session *discordgo.Session, guildId string) string {
+	guild, err := session.State.Guild(guildId)
+	if err != nil {
+		slog.Error("Error reading guild state: ", slog.Any("err", err))
+	}
+	var BotChannel string
+	for _, v := range guild.VoiceStates {
+		if v.UserID == session.State.Ready.User.ID {
+			BotChannel = v.ChannelID
+		}
+	}
+	return BotChannel
+}
+
+func getVoiceChannelMemberCount(session *discordgo.Session, guildId string, channelId string) int {
+	guild, err := session.State.Guild(guildId)
+	if err != nil {
+		slog.Error("Error reading guild state: ", slog.Any("err", err))
+	}
+
+	ChannelMemberCount := 0
+	for _, v := range guild.VoiceStates {
+		if v.ChannelID == channelId {
+			ChannelMemberCount++
+		}
+	}
+	return ChannelMemberCount
 }
