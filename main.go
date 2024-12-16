@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"fmt"
 	"log/slog"
 	"os"
 	"os/signal"
@@ -31,7 +30,7 @@ var (
 )
 
 func init() {
-	fmt.Println("INITIALISING")
+	slog.Info("INITIALISING")
 	godotenv.Load()
 
 	urlPattern = regexp.MustCompile("^https?://[-a-zA-Z0-9+&@#/%?=~_|!:,.;]*[-a-zA-Z0-9+&@#/%=~_|]?")
