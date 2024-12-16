@@ -176,9 +176,9 @@ func (b *Bot) exit() {
 
 	// Leave any voice channels we are in.
 	for _, v := range b.Session.State.Guilds {
-		botVc := getBotVoiceChannelId(b.Session, v.ID)
-		if botVc != "" {
-			slog.Info("Leaving voice channel:", slog.String("server-id", v.ID), slog.String("server-name", v.Name))
+		botVc := getBotVoiceChannel(b.Session, v.ID)
+		if botVc.ID != "" {
+			slog.Info("Leaving voice channel:", slog.String("server-id", v.ID), slog.String("server-name", v.Name), slog.String("channel-id", botVc.ID), slog.String("channel-name", botVc.Name))
 			if err := b.Session.ChannelVoiceJoinManual(v.ID, "", false, false); err != nil {
 				slog.Error("Error disconnecting from voice channel: ", slog.Any("err", err))
 			}
@@ -192,12 +192,12 @@ func (b *Bot) exit() {
 
 func (b *Bot) onVoiceStateUpdate(session *discordgo.Session, event *discordgo.VoiceStateUpdate) {
 	if event.UserID != session.State.User.ID {
-		botVc := getBotVoiceChannelId(session, event.VoiceState.GuildID)
-		if botVc != "" {
-			BotVcMemCount := getVoiceChannelMemberCount(session, event.VoiceState.GuildID, botVc)
+		botVc := getBotVoiceChannel(session, event.VoiceState.GuildID)
+		if botVc.ID != "" {
+			BotVcMemCount := getVoiceChannelMemberCount(session, event.VoiceState.GuildID, botVc.ID)
 			if BotVcMemCount == 1 {
 				time.Sleep(time.Duration(EmptyChannelTimeout) * time.Second)
-				BotVcMemCount := getVoiceChannelMemberCount(session, event.VoiceState.GuildID, botVc)
+				BotVcMemCount := getVoiceChannelMemberCount(session, event.VoiceState.GuildID, botVc.ID)
 				if BotVcMemCount == 1 {
 					if err := b.Session.ChannelVoiceJoinManual(event.VoiceState.GuildID, "", false, false); err != nil {
 						slog.Error("Error disconnecting from voice channel: ", slog.Any("err", err))
@@ -223,17 +223,28 @@ func (b *Bot) onVoiceServerUpdate(session *discordgo.Session, event *discordgo.V
 	b.Lavalink.OnVoiceServerUpdate(context.TODO(), snowflake.MustParse(event.GuildID), event.Token, event.Endpoint)
 }
 
-func getBotVoiceChannelId(session *discordgo.Session, guildId string) string {
+func getBotVoiceChannel(session *discordgo.Session, guildId string) discordgo.Channel {
 	guild, err := session.State.Guild(guildId)
 	if err != nil {
 		slog.Error("Error reading guild state: ", slog.Any("err", err))
 	}
-	var BotChannel string
+	var BotChannelID string
 	for _, v := range guild.VoiceStates {
 		if v.UserID == session.State.Ready.User.ID {
-			BotChannel = v.ChannelID
+			BotChannelID = v.ChannelID
 		}
 	}
+	var BotChannel discordgo.Channel
+	for _, guild := range session.State.Guilds {
+		if guild.ID == guildId {
+			for _, channel := range guild.Channels {
+				if channel.ID == BotChannelID {
+					BotChannel = *channel
+				}
+			}
+		}
+	}
+
 	return BotChannel
 }
 
