@@ -289,3 +289,37 @@ func (b *Bot) play(event *discordgo.InteractionCreate, data discordgo.Applicatio
 
 	return player.Update(context.TODO(), lavalink.WithTrack(*toPlay))
 }
+
+func (b *Bot) shutdown(event *discordgo.InteractionCreate, data discordgo.ApplicationCommandInteractionData) error {
+	if err := b.Session.InteractionRespond(event.Interaction, &discordgo.InteractionResponse{
+		Type: discordgo.InteractionResponseChannelMessageWithSource,
+		Data: &discordgo.InteractionResponseData{
+			Content: "Confirm bot shutdown",
+			Flags:   discordgo.MessageFlagsEphemeral,
+			Components: []discordgo.MessageComponent{
+				discordgo.ActionsRow{
+					Components: []discordgo.MessageComponent{
+						discordgo.Button{
+							Label: "Cancel",
+							Style: discordgo.SecondaryButton,
+							Disabled: false,
+							CustomID: "shutdown_no",
+						},
+						discordgo.Button{
+							Label:    "Shutdown",
+							Style:    discordgo.DangerButton,
+							Disabled: false,
+							CustomID: "shutdown_yes",
+						},
+					},
+				},
+			},
+		},
+	}); err != nil {
+		return err
+	}
+	
+	time.Sleep(time.Duration(30) * time.Second)
+	b.Session.InteractionResponseDelete(event.Interaction)
+	return nil
+}

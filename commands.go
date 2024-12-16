@@ -77,6 +77,10 @@ var commands = []*discordgo.ApplicationCommand{
 			},
 		},
 	},
+	{
+		Name:        "shutdown",
+		Description: "Triggers the bot to shutdown, hopefully to be automatically restarted.",
+	},
 }
 
 func registerCommands(s *discordgo.Session) {

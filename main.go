@@ -49,6 +49,7 @@ type Bot struct {
 	Session  *discordgo.Session
 	Lavalink disgolink.Client
 	Handlers map[string]func(event *discordgo.InteractionCreate, data discordgo.ApplicationCommandInteractionData) error
+	ComponentHandlers map[string]func(event *discordgo.InteractionCreate, data discordgo.MessageComponentInteractionData) error
 	Queues   *QueueManager
 }
 
@@ -73,7 +74,7 @@ func main() {
 	session.State.TrackVoice = true
 	session.Identify.Intents = discordgo.IntentGuilds | discordgo.IntentsGuildVoiceStates
 
-	session.AddHandler(b.onApplicationCommand)
+	session.AddHandler(b.onInteractionCreate)
 	session.AddHandler(b.onVoiceStateUpdate)
 	session.AddHandler(b.onVoiceServerUpdate)
 
@@ -104,6 +105,11 @@ func main() {
 		"clear-queue": b.clearQueue,
 		"queue-type":  b.queueType,
 		"shuffle":     b.shuffle,
+		"shutdown":    b.shutdown,
+	}
+	b.ComponentHandlers = map[string]func(event *discordgo.InteractionCreate, data discordgo.MessageComponentInteractionData) error{
+		"shutdown_no": b.shutdownNo,
+		"shutdown_yes": b.shutdownYes,
 	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
@@ -131,6 +137,14 @@ func main() {
 	<-s
 }
 
+func (b *Bot) onInteractionCreate(session *discordgo.Session, event *discordgo.InteractionCreate) {
+	if event.Interaction.Type == discordgo.InteractionApplicationCommand {
+		b.onApplicationCommand(session, event)
+	} else if event.Interaction.Type == discordgo.InteractionMessageComponent {
+		b.onMessageComponent(session, event)
+	}
+}
+
 func (b *Bot) onApplicationCommand(session *discordgo.Session, event *discordgo.InteractionCreate) {
 	data := event.ApplicationCommandData()
 
@@ -142,6 +156,39 @@ func (b *Bot) onApplicationCommand(session *discordgo.Session, event *discordgo.
 	if err := handler(event, data); err != nil {
 		slog.Error("error handling command: ", slog.Any("err", err))
 	}
+}
+
+func (b *Bot) onMessageComponent(session *discordgo.Session, event *discordgo.InteractionCreate) {
+	data := event.Interaction.MessageComponentData()
+
+	handler, ok := b.ComponentHandlers[data.CustomID]
+	if !ok {
+		slog.Info("unknown CustomID", slog.String("CustomID", data.CustomID))
+		return
+	}
+	if err := handler(event, data); err != nil {
+		slog.Error("error handling command: ", slog.Any("err", err))
+	}
+}
+
+func (b *Bot) exit() {
+	
+	slog.Info("SHUTTING DOWN")
+
+	// Leave any voice channels we are in.
+	for _, v := range b.Session.State.Guilds {
+		botVc := getBotVoiceChannelId(b.Session, v.ID)
+		if botVc != "" {
+			slog.Info("Leaving voice channel:", slog.String("server-id", v.ID), slog.String("server-name", v.Name))
+			if err := b.Session.ChannelVoiceJoinManual(v.ID, "", false, false); err != nil {
+				slog.Error("Error disconnecting from voice channel: ", slog.Any("err", err))
+			}
+		}
+	}
+	
+	b.Session.Close()
+	os.Exit(0)
+	return
 }
 
 func (b *Bot) onVoiceStateUpdate(session *discordgo.Session, event *discordgo.VoiceStateUpdate) {
