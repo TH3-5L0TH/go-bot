@@ -105,6 +105,7 @@ func main() {
 		"queue-type":  b.queueType,
 		"shuffle":     b.shuffle,
 		"shutdown":    b.shutdown,
+		"skip":        b.skip,
 	}
 	b.ComponentHandlers = map[string]func(event *discordgo.InteractionCreate, data discordgo.MessageComponentInteractionData) error{
 		"shutdown_no": b.shutdownNo,

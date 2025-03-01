@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"time"
 
 	"github.com/bwmarrin/discordgo"
@@ -167,6 +168,70 @@ func (b *Bot) stop(event *discordgo.InteractionCreate, data discordgo.Applicatio
 		Type: discordgo.InteractionResponseChannelMessageWithSource,
 		Data: &discordgo.InteractionResponseData{
 			Content: "Player stopped",
+		},
+	})
+}
+
+func (b *Bot) skip(event *discordgo.InteractionCreate, data discordgo.ApplicationCommandInteractionData) error {
+	player := b.Lavalink.ExistingPlayer(snowflake.MustParse(event.GuildID))
+	if player == nil {
+		return b.Session.InteractionRespond(event.Interaction, &discordgo.InteractionResponse{
+			Type: discordgo.InteractionResponseChannelMessageWithSource,
+			Data: &discordgo.InteractionResponseData{
+				Content: "No player found",
+			},
+		})
+	}
+
+	queue := b.Queues.Get(event.GuildID)
+	var (
+		nextTrack lavalink.Track
+		ok        bool
+	)
+	switch queue.Type {
+	case QueueTypeNormal:
+		nextTrack, ok = queue.Next()
+
+	case QueueTypeRepeatTrack:
+		nextTrack = *player.Track()
+
+	case QueueTypeRepeatQueue:
+		queue.Add(*player.Track())
+		nextTrack, ok = queue.Next()
+	}
+
+	if !ok {
+		if nextTrack.Info.Identifier == "" {
+			return b.Session.InteractionRespond(event.Interaction, &discordgo.InteractionResponse{
+				Type: discordgo.InteractionResponseChannelMessageWithSource,
+				Data: &discordgo.InteractionResponseData{
+					Content: "Failed to skip track: Next track missing identifier, is the queue empty?",
+				},
+			})	
+		}
+		return b.Session.InteractionRespond(event.Interaction, &discordgo.InteractionResponse{
+			Type: discordgo.InteractionResponseChannelMessageWithSource,
+			Data: &discordgo.InteractionResponseData{
+				Content: "Failed to skip track: Queue error",
+			},
+		})
+	}
+
+	if err := player.Update(context.TODO(), lavalink.WithTrack(nextTrack)); err != nil {
+		slog.Error("Failed to play next track", slog.Any("err", err))
+		return b.Session.InteractionRespond(event.Interaction, &discordgo.InteractionResponse{
+			Type: discordgo.InteractionResponseChannelMessageWithSource,
+			Data: &discordgo.InteractionResponseData{
+				Content: "Failed to skip track: Unable to play the next track",
+			},
+		})
+	}
+
+	return b.Session.InteractionRespond(event.Interaction, &discordgo.InteractionResponse{
+		Type: discordgo.InteractionResponseChannelMessageWithSource,
+		Data: &discordgo.InteractionResponseData{
+			//Content: "Track Skipped",
+			Content: fmt.Sprintf("Skipping to track: [`%s`](<%s>)", nextTrack.Info.Title, *nextTrack.Info.URI),
 		},
 	})
 }

@@ -36,6 +36,10 @@ var commands = []*discordgo.ApplicationCommand{
 		Description: "Stops the current song and stops the player",
 	},
 	{
+		Name:        "skip",
+		Description: "Skip the current song",
+	},
+	{
 		Name:        "players",
 		Description: "Shows all active players",
 	},
