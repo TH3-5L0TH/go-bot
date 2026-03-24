@@ -15,18 +15,22 @@ import (
 	"github.com/joho/godotenv"
 
 	"github.com/disgoorg/disgolink/v3/disgolink"
+	"github.com/docker/docker/api/types/container"
+	"github.com/docker/docker/client"
 )
 
 var (
-	urlPattern    *regexp.Regexp
-	searchPattern *regexp.Regexp
-	Token         string
-	GuildId       string
-	NodeName      string
-	NodeAddress   string
-	NodePassword  string
-	NodeSecure    bool
-	EmptyChannelTimeout int
+	urlPattern    			*regexp.Regexp
+	searchPattern 			*regexp.Regexp
+	Token         			string
+	GuildId       			string
+	NodeName      			string
+	NodeAddress   			string
+	NodePassword  			string
+	LavalinkConfigPath		string
+	LavalinkContainerName	string
+	NodeSecure    			bool
+	EmptyChannelTimeout 	int
 )
 
 func init() {
@@ -40,8 +44,31 @@ func init() {
 	NodeName = os.Getenv("NODE_NAME")
 	NodeAddress = os.Getenv("NODE_ADDRESS")
 	NodePassword = os.Getenv("NODE_PASSWORD")
+	LavalinkConfigPath = os.Getenv("LAVALINK_CONFIG")
+	LavalinkContainerName = os.Getenv("LAVALINK_CONTAINER_NAME")
 	NodeSecure, _ = strconv.ParseBool(os.Getenv("NODE_SECURE"))
 	EmptyChannelTimeout, _ = strconv.Atoi(os.Getenv("EMPTY_CHANNEL_TIMEOUT"))
+}
+
+func restartLavalink() error {
+	slog.Info("Attempting to restart Lavalink container...")
+	ctx := context.Background()
+
+	dockerClient, err := client.NewClientWithOpts(
+		client.FromEnv,
+		client.WithAPIVersionNegotiation(),
+	)
+	if err != nil {
+		slog.Error("Unable to create docker client:", slog.Any("Reason", err))
+		return err
+	}
+
+	if err := dockerClient.ContainerRestart(ctx , LavalinkContainerName, container.StopOptions{}); err != nil {
+		slog.Error("Unable to restart Docker container", slog.String("container:",LavalinkContainerName), slog.Any("error", err))
+		return err
+	}
+
+	return nil
 }
 
 type Bot struct {
@@ -54,6 +81,13 @@ type Bot struct {
 
 func main() {
 	slog.Info("starting discordgo example...")
+
+	restartErr := restartLavalink()
+	if restartErr != nil {
+		slog.Error("error while restarting Lavalink container", slog.Any("Reason", restartErr))
+		os.Exit(1)
+	}
+
 	slog.Info("discordgo version:", slog.String("version", discordgo.VERSION))
 	slog.Info("disgolink version:", slog.String("version", disgolink.Version))
 
@@ -188,7 +222,6 @@ func (b *Bot) exit() {
 	
 	b.Session.Close()
 	os.Exit(0)
-	return
 }
 
 func (b *Bot) onVoiceStateUpdate(session *discordgo.Session, event *discordgo.VoiceStateUpdate) {
