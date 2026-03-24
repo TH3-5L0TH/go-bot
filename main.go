@@ -82,11 +82,13 @@ type Bot struct {
 func main() {
 	slog.Info("starting discordgo example...")
 
+	/* 	
 	restartErr := restartLavalink()
 	if restartErr != nil {
 		slog.Error("error while restarting Lavalink container", slog.Any("Reason", restartErr))
 		os.Exit(1)
 	}
+	*/
 
 	slog.Info("discordgo version:", slog.String("version", discordgo.VERSION))
 	slog.Info("disgolink version:", slog.String("version", disgolink.Version))
